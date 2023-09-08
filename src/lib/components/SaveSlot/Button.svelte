@@ -1,16 +1,25 @@
 <script>
+    import { createEventDispatcher } from "svelte";
     import IconAdd from "./plus.png";
+
+    const dispatch = createEventDispatcher();
+
+    function event() {
+        dispatch("click");
+    }
+
     export let plus = false;
     export let style = "";
     export let header = "";
     export let footer = "";
 </script>
 
-<button {style}>
+<button {style} on:click={event}>
     <p class="header">{header}</p>
     {#if plus}
         <img draggable="false" src={IconAdd} alt="New" />
     {/if}
+    <slot />
     <p class="footer">{footer}</p>
 </button>
 
