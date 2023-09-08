@@ -18,6 +18,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"localforage": "^1.10.0"
+		"easy-json-database": "^1.5.1",
+		"uuid": "^9.0.0"
 	}
 }

@@ -13,8 +13,8 @@
         border-width: 1px;
         border-radius: 0;
         border-bottom-width: 0px;
-        border-top-right-radius: 8px;
-        border-top-left-radius: 8px;
+        /* border-top-right-radius: 8px;
+        border-top-left-radius: 8px; */
         background-color: rgb(14, 0, 14);
         border-color: #85448e;
         border-style: solid;

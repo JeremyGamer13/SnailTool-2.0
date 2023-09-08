@@ -1,13 +1,17 @@
-import localforage from "localforage";
+import JSONStorage from "easy-json-database";
+import { v4 as uuidv4 } from 'uuid';
+const ProfileDatabase = new JSONStorage('./profiles.json');
 
 class Profiles {
-    static async get() {
-        const profiles = await localforage.getItem("st:profiles");
-        if (!Array.isArray(profiles)) return [];
-        return profiles;
+    static async get(key) {
+        if (!key) return ProfileDatabase.all().values();
+        return ProfileDatabase.get(key);
     }
-    static set(data) {
-        return localforage.setItem("st:profiles", data);
+    static generateKey() {
+        return uuidv4();
+    }
+    static set(name, data) {
+        ProfileDatabase.set(name, data);
     }
 }
 
