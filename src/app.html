@@ -4,6 +4,53 @@
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width" />
+		<style>
+			@font-face {
+				font-family: EasVHS;
+				src: url("/EasVHS.ttf");
+			}
+			@font-face {
+				font-family: Retron2000;
+				src: url("/Retron2000.ttf");
+			}
+
+			*:not(code, .token) {
+				font-family: Retron2000, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    			color: #f0c0e3;
+			}
+			body {
+    			background-color: rgb(14, 0, 14);
+			}
+
+			button {
+			    border-width: 1px;
+			    border-radius: 6px;
+			    background-color: rgba(0, 0, 0, 0);
+			    border-color: #85448E;
+			    border-style: solid;
+			    transition-duration: 0.5s;
+			    cursor: pointer;
+			}
+
+			button:focus,
+			button:hover {
+			    border-width: 1px;
+			    border-radius: 6px;
+			    background-color: #331F30;
+			    border-color: #EA81F9;
+			    border-style: solid;
+			    transition-duration: 0.5s;
+			    outline: unset;
+			}
+
+			button:active {
+			    border-width: 1px;
+			    background-color: #1f131d;
+			    border-color: #EA81F9;
+			    border-style: solid;
+			    transition-duration: 0.5s;
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

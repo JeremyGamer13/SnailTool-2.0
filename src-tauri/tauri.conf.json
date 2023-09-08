@@ -12,7 +12,7 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false
+      "all": true
     },
     "bundle": {
       "active": true,
@@ -59,7 +59,7 @@
         "height": 600,
         "resizable": true,
         "title": "SnailTool",
-        "width": 800
+        "width": 1200
       }
     ]
   }

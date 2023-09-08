@@ -4,9 +4,9 @@
 
 <NavigationBar />
 
-<h1 class="title">SnailTool</h1>
-
 <div class="content">
+    <img src="/logo.png" alt="SnailTool" class="title" />
+
     <div>
         <p>Game Directory: None</p>
         <button>Auto-Detect</button>
@@ -24,8 +24,8 @@
 
 <style>
     .title {
-        width: 100%;
-        text-align: center;
+        margin-top: 8px;
+        height: 128px;
     }
     .content {
         display: flex;
@@ -33,11 +33,15 @@
         align-items: center;
     }
     .footer {
-        opacity: 0.5;
-        font-size: small;
         position: absolute;
         left: 2px;
         bottom: 2px;
+        opacity: 0.5;
         margin-block: 0;
+        font-size: x-small;
+        user-select: none;
+        font-style: italic;
+        text-transform: uppercase;
+        pointer-events: none;
     }
 </style>

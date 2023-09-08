@@ -1,0 +1,46 @@
+<script>
+    import IconAdd from "./plus.png";
+    export let plus = false;
+    export let style = "";
+    export let header = "";
+    export let footer = "";
+</script>
+
+<button {style}>
+    <p class="header">{header}</p>
+    {#if plus}
+        <img draggable="false" src={IconAdd} alt="New" />
+    {/if}
+    <p class="footer">{footer}</p>
+</button>
+
+<style>
+    button {
+        position: absolute;
+        width: 180px;
+        height: 275px;
+        border-radius: 0;
+        user-select: none;
+    }
+    button img {
+        width: 65px;
+        height: 65px;
+        image-rendering: pixelated;
+    }
+
+    .header,
+    .footer {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        color: white;
+        font-size: 22px;
+        text-align: center;
+    }
+    .header {
+        top: 4px;
+    }
+    .footer {
+        bottom: 4px;
+    }
+</style>
