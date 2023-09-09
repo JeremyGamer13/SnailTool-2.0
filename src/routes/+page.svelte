@@ -1,5 +1,6 @@
 <script>
     import * as path from "@tauri-apps/api/path";
+    import * as dialog from "@tauri-apps/api/dialog";
     import * as fs from "@tauri-apps/api/fs";
 
     import JSONStorage from "../lib/resources/jsonstorage.js";
@@ -22,6 +23,20 @@
         }
     });
 
+    const browseAndSetDir = async (gameDir) => {
+        const directory = await dialog.open({
+            directory: true,
+        });
+        if (!directory) return; // nothing selected
+
+        if (gameDir) {
+            FilePaths.game = directory;
+            ConfigData.set("gamePath", directory);
+        } else {
+            FilePaths.save = directory;
+            ConfigData.set("savePath", directory);
+        }
+    };
     const autoDetectDir = async (gameDir) => {
         let lookForDirectories = [];
         if (gameDir) {
@@ -77,13 +92,13 @@
     <p>Game Directory: {FilePaths.game ? FilePaths.game : "None"}</p>
     <div>
         <button on:click={() => autoDetectDir(true)}>Auto-Detect</button>
-        <button>Browse...</button>
+        <button on:click={() => browseAndSetDir(true)}>Browse...</button>
     </div>
     <br />
     <p>Save Directory: {FilePaths.save ? FilePaths.save : "None"}</p>
     <div>
         <button on:click={() => autoDetectDir(false)}>Auto-Detect</button>
-        <button>Browse...</button>
+        <button on:click={() => browseAndSetDir(false)}>Browse...</button>
     </div>
 </div>
 
