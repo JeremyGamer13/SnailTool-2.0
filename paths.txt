@@ -1,0 +1,2 @@
+:/Program Files (x86)/Steam/steamapps/common/Will You Snail/Will You Snail.exe
+:/Program Files/Steam/steamapps/common/Will You Snail/Will You Snail.exe

@@ -6,7 +6,12 @@
 
     // profiles
     let profileUpdate = 0;
-    const profiles = Profiles.get();
+    let profiles = Profiles.get();
+
+    const createProfile = async () => {
+        profiles = Profiles.get();
+        profileUpdate++;
+    };
 </script>
 
 <NavigationBar />
@@ -16,5 +21,5 @@
         <SaveSlot header={profile.name} />
     {/each}
 {/key}
-<SaveSlot header={"GS2ML"} footer="Manaege" />
-<SaveSlot header={"New Profile"} plus={true} />
+<SaveSlot header={"GS2ML"} footer="Manage" />
+<SaveSlot header={"New Profile"} plus={true} on:click={createProfile} />
