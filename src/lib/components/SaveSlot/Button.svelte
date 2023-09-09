@@ -9,6 +9,7 @@
     }
 
     export let plus = false;
+    export let icon = "";
     export let style = "";
     export let header = "";
     export let footer = "";
@@ -19,13 +20,16 @@
     {#if plus}
         <img draggable="false" src={IconAdd} alt="New" />
     {/if}
+    {#if icon}
+        <img draggable="false" src={icon} alt="New" />
+    {/if}
     <slot />
     <p class="footer">{footer}</p>
 </button>
 
 <style>
     button {
-        position: absolute;
+        position: relative;
         width: 180px;
         height: 275px;
         border-radius: 0;

@@ -4,22 +4,35 @@
 
     import Profiles from "$lib/resources/profiles.js";
 
+    // ICONS
+    import GS2MLIcon from "$lib/components/SaveSlot/gs2ml.png";
+    import ProfileIcon from "$lib/components/SaveSlot/snail.png";
+
     // profiles
     let profileUpdate = 0;
-    let profiles = Profiles.get();
+    let profilesLoaded = false;
+    let profiles = [];
+
+    Profiles.get().then((profiless) => {
+        profiles = profiless;
+        profilesLoaded = true;
+        profileUpdate++;
+    });
 
     const createProfile = async () => {
-        profiles = Profiles.get();
+        profiles = await Profiles.get();
         profileUpdate++;
     };
 </script>
 
 <NavigationBar />
 
-{#key profileUpdate}
-    {#each profiles as profile}
-        <SaveSlot header={profile.name} />
-    {/each}
-{/key}
-<SaveSlot header={"GS2ML"} footer="Manage" />
-<SaveSlot header={"New Profile"} plus={true} on:click={createProfile} />
+{#if profilesLoaded}
+    {#key profileUpdate}
+        {#each profiles as profile}
+            <SaveSlot header={profile.name} icon={ProfileIcon} />
+        {/each}
+    {/key}
+    <SaveSlot header={"GS2ML"} footer="Manage" icon={GS2MLIcon} />
+    <SaveSlot header={"New Profile"} plus={true} on:click={createProfile} />
+{/if}
