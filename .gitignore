@@ -11,3 +11,5 @@ vite.config.ts.timestamp-*
 
 # SnailTool runtime files
 /src-tauri/*_snailtool.json
+/src-tauri/*_snailtool.*
+/src-tauri/*_snailtool*

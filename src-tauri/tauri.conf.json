@@ -25,6 +25,23 @@
       },
       "dialog": {
         "all": true
+      },
+      "shell": {
+        "all": true,
+        "scope": [
+          {
+            "name": "extract-gs2ml",
+            "cmd": "powershell",
+            "args": true
+          }
+        ]
+      },
+      "http": {
+        "all": true,
+        "scope": [
+          "https:*",
+          "data:*"
+        ]
       }
     },
     "bundle": {
