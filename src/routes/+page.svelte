@@ -69,8 +69,9 @@
         }
 
         if (!usablePath) {
-            return alert(
-                "Couldn't find directory. Your game files may be on a seperate drive that SnailTool can't find automatically."
+            return dialog.message(
+                "Couldn't find directory. Your game files may be on a seperate drive that SnailTool can't find automatically.",
+                { title: "Not Found", type: "error" }
             );
         }
 
@@ -115,7 +116,7 @@
         align-items: center;
     }
     .footer {
-        position: absolute;
+        position: fixed;
         left: 2px;
         bottom: 2px;
         opacity: 0.5;

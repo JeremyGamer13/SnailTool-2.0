@@ -82,6 +82,7 @@
         top: 3em;
         width: 100%;
         height: calc(100% - 3em);
+        overflow-y: auto;
     }
     .modal-content-notitle {
         top: 0;

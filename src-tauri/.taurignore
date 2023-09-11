@@ -1,0 +1,6 @@
+/src-tauri/*_snailtool.json
+/src-tauri/*_snailtool.*
+/src-tauri/*_snailtool*
+*_snailtool.json
+*_snailtool.*
+*_snailtool*

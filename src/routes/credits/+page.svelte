@@ -36,15 +36,17 @@
     <img src="/logo.png" alt="SnailTool" class="title" />
 </div>
 
-{#each data as entry}
-    <div class="entry-wrapper">
-        <img src={entry.image} alt={entry.name} />
-        <div class="entry-details">
-            <h2>{entry.name}</h2>
-            <p>{entry.for}</p>
+<div class="credit-entries">
+    {#each data as entry}
+        <div class="entry-wrapper">
+            <img src={entry.image} alt={entry.name} />
+            <div class="entry-details">
+                <h2>{entry.name}</h2>
+                <p>{entry.for}</p>
+            </div>
         </div>
-    </div>
-{/each}
+    {/each}
+</div>
 
 <p class="footer">st-v2.0; svelte - tauri</p>
 
@@ -60,11 +62,18 @@
         height: 128px;
     }
 
+    .credit-entries {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        width: 100%;
+    }
     .entry-wrapper {
         display: flex;
         flex-direction: row;
         align-items: center;
         margin: 8px 4px;
+        width: calc(50% - 8px);
     }
     .entry-wrapper > img {
         margin-right: 10px;
@@ -83,7 +92,7 @@
     }
 
     .footer {
-        position: absolute;
+        position: fixed;
         left: 2px;
         bottom: 2px;
         opacity: 0.5;

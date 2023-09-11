@@ -33,6 +33,11 @@
             "name": "extract-gs2ml",
             "cmd": "powershell",
             "args": true
+          },
+          {
+            "name": "register-mod",
+            "cmd": "start",
+            "args": true
           }
         ]
       },

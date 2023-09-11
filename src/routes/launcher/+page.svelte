@@ -4,6 +4,7 @@
     import * as os from "@tauri-apps/api/os";
     import * as shell from "@tauri-apps/api/shell";
     import * as http from "@tauri-apps/api/http";
+    import * as dialog from "@tauri-apps/api/dialog";
     // http does not use CORS
 
     import NavigationBar from "$lib/components/NavigationBar/Bar.svelte";
@@ -12,6 +13,7 @@
 
     import Profiles from "$lib/resources/profiles.js";
     import JSONStorage from "$lib/resources/jsonstorage.js";
+    import Cast from "$lib/resources/cast.js";
 
     const ConfigData = new JSONStorage("./config_snailtool.json");
     const FilePaths = {
@@ -29,8 +31,8 @@
         "https://github.com/OmegaMetor/GS2ML/releases/download/9de51eb/gm2ml-win64.zip";
 
     // ICONS
-    import GS2MLIcon from "$lib/components/SaveSlot/gs2ml.png";
-    import ProfileIcon from "$lib/components/SaveSlot/snail.png";
+    import IconGS2ML from "$lib/components/SaveSlot/gs2ml.png";
+    import IconProfile from "$lib/components/SaveSlot/snail.png";
 
     // file paths
     ConfigData.get("gamePath").then((path) => {
@@ -67,17 +69,20 @@
             available: false,
             searching: true,
             searchable: true,
+            disabled: true,
+            mods: [],
         },
         new: false,
         edit: false,
     };
 
     // GS2ML
-    const openGs2mlMenu = async () => {
-        modalStates.gs2ml.open = true;
+    const lookForGs2ml = async () => {
         modalStates.gs2ml.available = false;
         modalStates.gs2ml.searching = true;
         modalStates.gs2ml.searchable = true;
+        modalStates.gs2ml.disabled = true;
+        modalStates.gs2ml.mods = [];
         // look for GS2ML
         if (!FilePaths.game) {
             // no file path
@@ -111,6 +116,105 @@
         modalStates.gs2ml.available = true;
         modalStates.gs2ml.searching = false;
         modalStates.gs2ml.searchable = true;
+        // GS2ML exists but version.dll might not
+        modalStates.gs2ml.disabled = true;
+        const dllPath = await path.join(FilePaths.game, "version.dll");
+        const dllExists = await fs.exists(dllPath);
+        if (dllExists) {
+            modalStates.gs2ml.disabled = false;
+        }
+    };
+    const getGs2mlModMetadata = async (mdpath) => {
+        const metadataPath = await path.join(mdpath, "snailtool_metadata.json");
+        const metadataExists = await fs.exists(metadataPath);
+        if (!metadataExists) return {};
+        const meta = JSON.parse(await fs.readTextFile(metadataPath));
+        if (typeof meta.icon === "string") {
+            try {
+                const iconPath = await path.join(mdpath, meta.icon);
+                const buffer = await fs.readBinaryFile(iconPath);
+                const dataUrl = await Cast.arrayBufferToDataURL(buffer);
+                meta.icon = dataUrl;
+            } catch (err) {
+                console.warn("failed to load icon in", mdpath, err);
+            }
+        }
+        return meta;
+    };
+    const lookForGs2mlMods = async () => {
+        modalStates.gs2ml.mods = [];
+        const gs2mlPath = await path.join(FilePaths.game, "gs2ml");
+        const gs2mlExists = await fs.exists(gs2mlPath);
+        if (!gs2mlExists) return;
+        const gs2mlModsPath = await path.join(FilePaths.game, "gs2ml/mods");
+        const gs2mlModsExists = await fs.exists(gs2mlModsPath);
+        if (!gs2mlModsExists) return;
+        const folders = await fs.readDir(gs2mlModsPath);
+        let idx = 0;
+        for (const folder of folders) {
+            modalStates.gs2ml.mods[idx] = {
+                id: folder.name,
+            };
+            let data = {};
+            try {
+                data = await getGs2mlModMetadata(folder.path);
+            } catch {
+                data = {};
+            }
+            modalStates.gs2ml.mods[idx] = {
+                ...data,
+                id: folder.name,
+            };
+            modalStates.gs2ml.mods = modalStates.gs2ml.mods;
+            idx++;
+        }
+    };
+    const openGs2mlMenu = async () => {
+        modalStates.gs2ml.open = true;
+        await lookForGs2ml();
+        await lookForGs2mlMods();
+    };
+    const fetchAndInsertGs2ml = async () => {
+        console.log("fetching GS2ML archive");
+        const res = await http.fetch(GS2MLRelease, {
+            method: "GET",
+            responseType: http.ResponseType.Binary,
+        });
+        if (!res.ok) {
+            throw new Error(
+                `Fetching GS2ML Archive URL returned ${res.status} (NOT OK)`
+            );
+        }
+        console.log("writing file");
+        const archivePath = await path.resolve("./gs2ml_archive_snailtool.zip");
+        const archiveTarget = await path.resolve(FilePaths.game);
+        console.log("writing file to", archivePath);
+        await fs.writeBinaryFile(archivePath, res.data);
+        const ps1Path = await path.resolve(
+            "./gs2ml_archive_unzip_snailtool.ps1"
+        );
+        console.log("creating powershell script at", archivePath);
+        await fs.writeTextFile(
+            ps1Path,
+            `Expand-Archive '${archivePath}' '${archiveTarget}' -Force`
+        );
+        const cmdCommand = ["powershell.exe", `${ps1Path}`];
+        console.log("running", cmdCommand);
+        const commandResult = await new shell.Command(
+            "extract-gs2ml",
+            cmdCommand
+        ).execute();
+        console.log(commandResult.stdout);
+        if (commandResult.code !== 0) {
+            // epic fail
+            throw new Error(
+                `Unzip command failed with code ${commandResult.code}; ${commandResult}`
+            );
+        }
+        console.log("install completed");
+        // we successed, reload
+        modalStates.gs2ml.open = false;
+        openGs2mlMenu();
     };
     const installGs2ml = async () => {
         // IMPORTANT: confirm & other functions are Promises in Tauri Svelte!
@@ -165,65 +269,165 @@
 
         // either while thats happening or just after nothing happened before,
         // lets install GS2ML
-        console.log("fetching GS2ML archive");
-        http.fetch(GS2MLRelease, {
-            method: "GET",
-            responseType: http.ResponseType.Binary,
-        })
-            .then(async (res) => {
-                if (!res.ok) {
-                    console.error("GS2ML response NOT ok;", res.data);
-                    alert("Failed to download GS2ML.");
-                    return;
-                }
-                console.log("writing file");
-                const archivePath = await path.resolve(
-                    "./gs2ml_archive_snailtool.zip"
-                );
-                const archiveTarget = await path.join(FilePaths.game, "/gs2ml");
-                console.log("writing file to", archivePath);
-                fs.writeBinaryFile(archivePath, res.data)
-                    .then(async () => {
-                        const cmdCommand = `powershell -command "Expand-Archive "${archivePath}" "${archiveTarget}" -Force"`;
-                        console.log("running", cmdCommand);
-                        const commandResult = await new shell.Command(
-                            "extract-gs2ml",
-                            cmdCommand
-                        ).execute();
-                        console.log(commandResult.stdout);
-                        if (commandResult.code !== 0) {
-                            // epic fail
-                            // svelte formatting makes this look disgusting holy shit
-                            console.error(
-                                "command failed with code",
-                                commandResult.code,
-                                ";",
-                                commandResult
-                            );
-                            alert(
-                                "Failed to unzip GS2ML archive. Process failed with exit code " +
-                                    commandResult.code +
-                                    "."
-                            );
-                            return;
-                        }
-                        // we successed, reload
-                        modalStates.gs2ml.open = false;
-                        openGs2mlMenu();
-                    })
-                    .catch((err) => {
-                        console.error("couldnt write GS2ML zip;", err);
-                        alert(
-                            "Failed to write the GS2ML zip archive. You may not have enough disk space, or something else went wrong."
-                        );
-                        return;
-                    });
+        try {
+            await fetchAndInsertGs2ml();
+        } catch (err) {
+            console.error(
+                "couldnt install GS2ML;",
+                err.stack ? err.stack : err
+            );
+            dialog.message(
+                `GS2ML could not be installed.\n\n${
+                    err.stack ? err.stack : err
+                }`,
+                { title: "Error", type: "error" }
+            );
+            return;
+        }
+    };
+
+    // more GS2ML but less core
+    const canToggleGs2ml = async () => {
+        const enabledDllPath = await path.join(FilePaths.game, "version.dll");
+        const enabledDllExists = await fs.exists(enabledDllPath);
+        const disabledDllPath = await path.join(
+            FilePaths.game,
+            "version_disabled_snailtool.dll"
+        );
+        const disabledDllExists = await fs.exists(disabledDllPath);
+        if (!enabledDllExists && !disabledDllExists) {
+            return false;
+        }
+        return true; // one of the paths exist
+    };
+    const toggleGs2ml = async () => {
+        // first check if GS2ML can be toggled
+        if (!(await canToggleGs2ml())) {
+            if (
+                await dialog.confirm(
+                    "GS2ML is missing it's version.dll file.\n\nOpen the installer for GS2ML?"
+                )
+            ) {
+                installGs2ml();
+            }
+            return;
+        }
+        const disabledDllPath = await path.join(
+            FilePaths.game,
+            "version_disabled_snailtool.dll"
+        );
+        const enabledDllPath = await path.join(FilePaths.game, "version.dll");
+        const disabledDllExists = await fs.exists(disabledDllPath);
+        let operation = async () => {};
+        if (disabledDllExists) {
+            // enable gs2ml
+            operation = async () =>
+                await fs.renameFile(disabledDllPath, enabledDllPath);
+        } else {
+            // disable gs2ml
+            operation = async () =>
+                await fs.renameFile(enabledDllPath, disabledDllPath);
+        }
+        try {
+            await operation();
+        } catch (err) {
+            console.error("couldnt toggle GS2ML;", err.stack ? err.stack : err);
+            dialog.message(
+                `An unexpected error occurred trying to change this state.\n\n${
+                    err.stack ? err.stack : err
+                }`,
+                { title: "Error", type: "error" }
+            );
+            return;
+        }
+        // resets the disabled state
+        lookForGs2ml();
+    };
+    const deleteGs2mlMod = async (id) => {
+        const message = `Are you sure you want to delete ${id}?\nThe mod will be removed permanently and you'll have to register it again.`;
+        if (!(await dialog.ask(message, { type: "warning" }))) return;
+        console.log("deleting", id, "...");
+        const modPath = await path.join(FilePaths.game, `gs2ml/mods/${id}`);
+        const modExists = await fs.exists(modPath);
+        if (modExists) {
+            fs.removeDir(modPath, {
+                recursive: true,
             })
-            .catch((err) => {
-                console.error("couldnt fetch GS2ML;", err);
-                alert("Failed to download GS2ML.");
-                return;
-            });
+                .catch((err) => {
+                    console.error("failed to delete mod", id, err);
+                    dialog.message(
+                        `An unexpected error occurred trying to delete ${id}.\n\n${
+                            err.stack ? err.stack : err
+                        }`,
+                        { title: "Error", type: "error" }
+                    );
+                    return;
+                })
+                .finally(() => {
+                    lookForGs2mlMods();
+                });
+        }
+    };
+    const handleGs2mlRegistryOfDirectory = async (dirpath) => {
+        console.log("registering", dirpath);
+        const files = await fs.readDir(dirpath);
+        // make sure we either have at least a DLL or .gml file
+        // obviously this isnt a requirement but just let the user know if neither are present
+        console.log("checking files in", dirpath, "(are they mod files?)");
+        const hasModFiles = files.some(
+            (file) => file.name.endsWith(".dll") || file.name.endsWith(".gml")
+        );
+        if (!hasModFiles) {
+            console.warn("no mod files found for", dirpath, "?");
+            const message = `No mod files were found inside of ${dirpath}\n\nDid you select the correct directory?\n\nPress "Cancel" to cancel registering this mod, and press "Ok" to continue.`;
+            if (!(await dialog.confirm(message, { type: "warning" }))) {
+                return console.log("cancelled loading", dirpath);
+            }
+        }
+        // copy directory using cmd because tauri fs doesnt have copy path
+        const modId = await path.basename(dirpath);
+        console.log("registering", modId);
+        // get mod path & command
+        const modPath = await path.join(FilePaths.game, `gs2ml/mods/${modId}`);
+        const cmdCommand = `xcopy "${dirpath}" "${modPath}" /s /e /y /i`;
+        // create cmd script
+        const cmdScriptPath = await path.resolve(
+            "./copy_mod_folder_snailtool.cmd"
+        );
+        console.log("creating cmd script at", cmdScriptPath);
+        await fs.writeTextFile(cmdScriptPath, `${cmdCommand}\nexit`);
+        // run the register command
+        await shell.open(cmdScriptPath);
+    };
+    const registerGs2mlMods = async () => {
+        const dialogResult = await dialog.open({
+            multiple: true,
+            directory: true,
+            title: "Select a folder containing the mod's DLL and or files",
+        });
+        if (!dialogResult) return;
+        const directories = Cast.toArray(dialogResult);
+        for (const directory of directories) {
+            try {
+                await handleGs2mlRegistryOfDirectory(directory);
+            } catch (err) {
+                console.error(err, err.stack);
+                dialog.message(
+                    `An error occurred reading ${directory}\n\n${
+                        err.stack ? err.stack : err
+                    }`,
+                    {
+                        type: "error",
+                        title: "Error registering mod",
+                    }
+                );
+            }
+            await lookForGs2mlMods();
+        }
+        // some functions need more time
+        setTimeout(async () => {
+            await lookForGs2mlMods();
+        }, 1000);
     };
 </script>
 
@@ -261,6 +465,45 @@
                     </button>
                 {/if}
             </p>
+            {#if modalStates.gs2ml.available}
+                <!-- gs2ml available? -->
+                <p>
+                    GS2ML is currently {modalStates.gs2ml.disabled
+                        ? "disabled"
+                        : "enabled"}.
+                </p>
+                <button on:click={() => toggleGs2ml()}>
+                    {modalStates.gs2ml.disabled ? "Enable" : "Disable"} GS2ML
+                </button>
+                <div style="height: 24px;" />
+                <button on:click={registerGs2mlMods}>Register Mods</button>
+                <div style="height: 8px;" />
+                {#each modalStates.gs2ml.mods as mod}
+                    <div class="mod-entry">
+                        <img
+                            src={mod.icon ? mod.icon : "/favicon.png"}
+                            alt={mod.id}
+                            class="mod-entry-icon"
+                        />
+                        <div class="mod-entry-details">
+                            <p class="mod-entry-name">
+                                {mod.name ? mod.name : mod.id}
+                            </p>
+                            <p class="mod-entry-description">
+                                {mod.description
+                                    ? mod.description
+                                    : "No description"}
+                                -
+                                {mod.version ? mod.version : "v1.0.0"}
+                            </p>
+                        </div>
+                        <button
+                            class="mod-entry-delete"
+                            on:click={() => deleteGs2mlMod(mod.id)}
+                        />
+                    </div>
+                {/each}
+            {/if}
         </div>
     </Modal>
 {/if}
@@ -270,13 +513,13 @@
 {#if profilesLoaded}
     {#key profileUpdate}
         {#each profiles as profile}
-            <SaveSlot header={profile.name} icon={ProfileIcon} />
+            <SaveSlot header={profile.name} icon={IconProfile} />
         {/each}
     {/key}
     <SaveSlot
         header={"GS2ML"}
         footer="Manage"
-        icon={GS2MLIcon}
+        icon={IconGS2ML}
         on:click={() => openGs2mlMenu()}
     />
     <SaveSlot header={"New Profile"} plus={true} on:click={createProfile} />
@@ -286,5 +529,55 @@
     .gs2ml-searching {
         margin-block: 2em;
         opacity: 0.6;
+    }
+
+    .mod-entry {
+        position: relative;
+        border: 1px solid #f0c0e377;
+        border-left: 0;
+        border-right: 0;
+        width: calc(100% - 4px);
+        padding: 4px;
+        display: flex;
+        flex-direction: row;
+    }
+    .mod-entry * {
+        margin-block: 0;
+    }
+    .mod-entry-icon {
+        height: 44px;
+        margin-right: 4px;
+    }
+    .mod-entry-details {
+        display: flex;
+        flex-direction: column;
+    }
+    .mod-entry-name {
+        font-size: 16px;
+    }
+    .mod-entry-description {
+        font-size: 16px;
+        opacity: 0.6;
+    }
+    .mod-entry-delete {
+        background: transparent;
+        background-image: url("/icons/trash_outline.png");
+        transition-duration: 0s;
+        position: absolute;
+        top: calc(42px - 32px);
+        right: 4px;
+        width: 32px;
+        height: 32px;
+        border: 0;
+        margin: 0;
+        padding: 0;
+    }
+    .mod-entry-delete:hover {
+        background-image: url("/icons/trash_hover.png");
+        transition-duration: 0s;
+    }
+    .mod-entry-delete:active {
+        opacity: 0.7;
+        transition-duration: 0s;
     }
 </style>
