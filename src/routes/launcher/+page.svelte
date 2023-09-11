@@ -21,14 +21,7 @@
         save: "",
     };
     // we install SDK for now, maybe we wont in the future
-    const NetInstallations = {
-        x64: "https://download.visualstudio.microsoft.com/download/pr/8d1443fd-a5e1-438d-8cb8-6ccb9849a54a/4f89f2b74a9c272789dfac8658a87673/dotnet-sdk-6.0.413-win-x64.exe",
-        x86: "https://download.visualstudio.microsoft.com/download/pr/fbf3c93d-757e-46fe-ad9c-90105d48a3e8/0fd732e33dd3f18e2c5c269bfd94e505/dotnet-sdk-6.0.413-win-x86.exe",
-        arm: "https://download.visualstudio.microsoft.com/download/pr/65921ee8-7be8-42f7-8902-900c98acd5e0/818423a2eb96f680225390e706e9994e/dotnet-sdk-6.0.413-win-arm64.exe",
-    };
-    // this should probably be maintained somehow
-    const GS2MLRelease =
-        "https://github.com/OmegaMetor/GS2ML/releases/download/9de51eb/gm2ml-win64.zip";
+    const NetInstallationCommand = "winget install Microsoft.DotNet.SDK.6";
 
     // ICONS
     import IconGS2ML from "$lib/components/SaveSlot/gs2ml.png";
@@ -70,10 +63,57 @@
             searching: true,
             searchable: true,
             disabled: true,
+            hasdotnet: true,
+            version: "",
             mods: [],
         },
         new: false,
         edit: false,
+    };
+
+    // dotnet
+    const checkForDotNetSdk = async () => {
+        // check for DOTNET 6.0
+        const dotnetSdkPaths = [
+            "C:/Program Files/dotnet/sdk/6.0.413",
+            "C:/Program Files/dotnet/sdk/6.0.316",
+            "C:/Program Files/dotnet/sdk/6.0.121",
+        ];
+        let exists = false;
+        for (const path of dotnetSdkPaths) {
+            const netExists = await fs.exists(path);
+            if (netExists) {
+                exists = true;
+                break;
+            }
+        }
+        return exists;
+    };
+    const installDotNetSdk = async () => {
+        const filePath = "./install_dotnet_snailtool.cmd";
+        // create cmd script
+        const cmdScriptPath = await path.resolve(filePath);
+        console.log("creating cmd script at", cmdScriptPath);
+        await fs.writeTextFile(
+            cmdScriptPath,
+            `${NetInstallationCommand}\nexit`
+        );
+        // run the register command
+        await shell.open(cmdScriptPath);
+    };
+    const handleDotNetInstallButton = async () => {
+        const hasDotNetSdk = await checkForDotNetSdk();
+        if (hasDotNetSdk) {
+            alert("DOTNET 6.0 is already installed.");
+            return;
+        }
+        if (
+            !(await confirm(
+                "Install DOTNET 6.0? At least 1 GB of space is recommended."
+            ))
+        )
+            return;
+        await installDotNetSdk();
     };
 
     // GS2ML
@@ -82,6 +122,8 @@
         modalStates.gs2ml.searching = true;
         modalStates.gs2ml.searchable = true;
         modalStates.gs2ml.disabled = true;
+        modalStates.gs2ml.hasdotnet = true;
+        modalStates.gs2ml.version = "";
         modalStates.gs2ml.mods = [];
         // look for GS2ML
         if (!FilePaths.game) {
@@ -116,6 +158,20 @@
         modalStates.gs2ml.available = true;
         modalStates.gs2ml.searching = false;
         modalStates.gs2ml.searchable = true;
+        // get gs2ml version
+        const snailToolLastDownloadPath = await path.join(
+            FilePaths.game,
+            "version_snailtool.txt"
+        );
+        const snailToolLastDownloadExists = await fs.exists(
+            snailToolLastDownloadPath
+        );
+        if (snailToolLastDownloadExists) {
+            const snailToolLastDownloadVersion = await fs.readTextFile(
+                snailToolLastDownloadPath
+            );
+            modalStates.gs2ml.version = snailToolLastDownloadVersion;
+        }
         // GS2ML exists but version.dll might not
         modalStates.gs2ml.disabled = true;
         const dllPath = await path.join(FilePaths.game, "version.dll");
@@ -123,6 +179,9 @@
         if (dllExists) {
             modalStates.gs2ml.disabled = false;
         }
+        // check for dotnet
+        const hasDotNetSdk = await checkForDotNetSdk();
+        modalStates.gs2ml.hasdotnet = hasDotNetSdk;
     };
     const getGs2mlModMetadata = async (mdpath) => {
         const metadataPath = await path.join(mdpath, "snailtool_metadata.json");
@@ -175,7 +234,22 @@
         await lookForGs2mlMods();
     };
     const fetchAndInsertGs2ml = async () => {
-        console.log("fetching GS2ML archive");
+        console.log("fetching latest GS2ML archive");
+        const latestReleaseMeta = await http.fetch(
+            "https://api.github.com/repos/OmegaMetor/GS2ML/releases/latest",
+            {
+                method: "GET",
+                responseType: http.ResponseType.JSON,
+            }
+        );
+        if (!latestReleaseMeta.ok) {
+            throw new Error(
+                `Fetching latest GS2ML release returned ${res.status} (NOT OK)`
+            );
+        }
+        const GS2MLRelease =
+            latestReleaseMeta.data.assets[0].browser_download_url;
+        console.log("fetching GS2ML archive", GS2MLRelease);
         const res = await http.fetch(GS2MLRelease, {
             method: "GET",
             responseType: http.ResponseType.Binary,
@@ -223,47 +297,14 @@
             "Do you want to install GS2ML in the current game directory? This will disable GMML if that is installed.";
         if (!(await confirm(message))) return;
         // check for DOTNET 6.0
-        const dotnetSdkPaths = [
-            "C:/Program Files/dotnet/sdk/6.0.413",
-            "C:/Program Files/dotnet/sdk/6.0.316",
-            "C:/Program Files/dotnet/sdk/6.0.121",
-        ];
-        let exists = false;
-        for (const path of dotnetSdkPaths) {
-            const netExists = await fs.exists(path);
-            if (netExists) {
-                exists = true;
-                break;
-            }
-        }
+        let exists = await checkForDotNetSdk();
         // if dotnet is not installed
         if (!exists) {
             // open installer
             const message =
-                "DOTNET 6.0 does not seem to be installed. Download the installer now? You'll need to open it yourself and at least 1 GB of space is recommended.";
+                "DOTNET 6.0 does not seem to be installed.\n\nDo you want to install DOTNET 6.0 now? You'll need it for GS2ML to run.\n\nAt least 1 GB of space is recommended.";
             if (await confirm(message)) {
-                console.log("checking system arch...");
-                const arch = await os.arch();
-                console.log("arch", arch);
-                let usingArch = "x64";
-                let installation = NetInstallations.x64;
-                switch (arch) {
-                    // literally everything else installs x64 for now
-                    case "x86":
-                        // install x86
-                        installation = NetInstallations.x86;
-                        break;
-                    case "arm":
-                        // install arm
-                        installation = NetInstallations.arm;
-                        break;
-                }
-                if (installation !== NetInstallations.x64) {
-                    usingArch = arch;
-                }
-                // download the installer
-                console.log("downloading installer for", usingArch);
-                shell.open(installation); // open the webpage
+                await installDotNetSdk();
             }
         }
 
@@ -462,6 +503,11 @@
                     <!-- gs2ml not installed -->
                     <button on:click={() => installGs2ml()}>
                         Install GS2ML
+                    </button>
+                {/if}
+                {#if modalStates.gs2ml.available && !modalStates.gs2ml.hasdotnet}
+                    <button on:click={handleDotNetInstallButton}>
+                        Install DOTNET 6.0
                     </button>
                 {/if}
             </p>
