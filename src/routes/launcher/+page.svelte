@@ -65,11 +65,27 @@
             disabled: true,
             hasdotnet: true,
             version: "",
+            realLatestVersion: "",
             mods: [],
         },
         new: false,
         edit: false,
     };
+
+    // latest gs2ml doo do
+    http.fetch(
+        "https://api.github.com/repos/OmegaMetor/GS2ML/releases/latest",
+        {
+            method: "GET",
+            responseType: http.ResponseType.JSON,
+            headers: {
+                "User-Agent": "JeremyGamer13 : SnailTool-2.0",
+            },
+        }
+    ).then((res) => {
+        if (!res.ok) return;
+        modalStates.gs2ml.realLatestVersion = res.data.tag_name;
+    });
 
     // dotnet
     const checkForDotNetSdk = async () => {
@@ -234,21 +250,26 @@
         await lookForGs2mlMods();
     };
     const fetchAndInsertGs2ml = async () => {
+        // get the latest release
         console.log("fetching latest GS2ML archive");
         const latestReleaseMeta = await http.fetch(
             "https://api.github.com/repos/OmegaMetor/GS2ML/releases/latest",
             {
                 method: "GET",
                 responseType: http.ResponseType.JSON,
+                headers: {
+                    "User-Agent": "JeremyGamer13 : SnailTool-2.0",
+                },
             }
         );
         if (!latestReleaseMeta.ok) {
             throw new Error(
-                `Fetching latest GS2ML release returned ${res.status} (NOT OK)`
+                `Fetching latest GS2ML release returned ${latestReleaseMeta.status} (NOT OK)\n${latestReleaseMeta.data}`
             );
         }
         const GS2MLRelease =
             latestReleaseMeta.data.assets[0].browser_download_url;
+        // get the zip file
         console.log("fetching GS2ML archive", GS2MLRelease);
         const res = await http.fetch(GS2MLRelease, {
             method: "GET",
@@ -259,11 +280,13 @@
                 `Fetching GS2ML Archive URL returned ${res.status} (NOT OK)`
             );
         }
+        // write zip file
         console.log("writing file");
         const archivePath = await path.resolve("./gs2ml_archive_snailtool.zip");
         const archiveTarget = await path.resolve(FilePaths.game);
         console.log("writing file to", archivePath);
         await fs.writeBinaryFile(archivePath, res.data);
+        // create powershell script to unzip file
         const ps1Path = await path.resolve(
             "./gs2ml_archive_unzip_snailtool.ps1"
         );
@@ -272,6 +295,7 @@
             ps1Path,
             `Expand-Archive '${archivePath}' '${archiveTarget}' -Force`
         );
+        // run powershell
         const cmdCommand = ["powershell.exe", `${ps1Path}`];
         console.log("running", cmdCommand);
         const commandResult = await new shell.Command(
@@ -286,6 +310,16 @@
             );
         }
         console.log("install completed");
+        // save the current version
+        const snailToolLastDownloadPath = await path.join(
+            FilePaths.game,
+            "version_snailtool.txt"
+        );
+        const gs2mlVersion = latestReleaseMeta.data.tag_name;
+        await fs.writeTextFile(
+            snailToolLastDownloadPath,
+            Cast.toString(gs2mlVersion)
+        );
         // we successed, reload
         modalStates.gs2ml.open = false;
         openGs2mlMenu();
@@ -309,6 +343,29 @@
         }
 
         // either while thats happening or just after nothing happened before,
+        // lets install GS2ML
+        try {
+            await fetchAndInsertGs2ml();
+        } catch (err) {
+            console.error(
+                "couldnt install GS2ML;",
+                err.stack ? err.stack : err
+            );
+            dialog.message(
+                `GS2ML could not be installed.\n\n${
+                    err.stack ? err.stack : err
+                }`,
+                { title: "Error", type: "error" }
+            );
+            return;
+        }
+    };
+    const updateGs2ml = async () => {
+        // IMPORTANT: confirm & other functions are Promises in Tauri Svelte!
+
+        const message = "Update to the latest GS2ML release?";
+        if (!(await confirm(message))) return;
+
         // lets install GS2ML
         try {
             await fetchAndInsertGs2ml();
@@ -512,6 +569,12 @@
                 {/if}
             </p>
             {#if modalStates.gs2ml.available}
+                <!-- gs2ml update needed? -->
+                {#if modalStates.gs2ml.realLatestVersion && modalStates.gs2ml.version}
+                    {#if modalStates.gs2ml.version !== modalStates.gs2ml.realLatestVersion}
+                        <button on:click={updateGs2ml}> Update GS2ML </button>
+                    {/if}
+                {/if}
                 <!-- gs2ml available? -->
                 <p>
                     GS2ML is currently {modalStates.gs2ml.disabled

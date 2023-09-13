@@ -22,6 +22,9 @@ class Cast {
         if (Array.isArray(data)) return data;
         return [data];
     }
+    static toString(content) {
+        return String(content);
+    }
 }
 
 export default Cast;
