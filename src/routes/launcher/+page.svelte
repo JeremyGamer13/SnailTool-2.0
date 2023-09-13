@@ -95,10 +95,14 @@
     let currentLaunchingProfileId = "";
     let modalCreateProfileData = {
         name: "New Profile",
+        filesReplaced: false,
+        files: { audiogroups: [] },
     };
     let modalEditProfileData = {
         id: "123",
         name: "New Profile",
+        filesReplaced: false,
+        files: { audiogroups: [] },
         loaded: false,
     };
     const createProfile = async () => {
@@ -144,6 +148,15 @@
         modalStates.edit = false;
     };
     const openCreateProfile = async () => {
+        modalCreateProfileData.filesReplaced = false;
+        modalCreateProfileData.files = {
+            executable: await path.join(FilePaths.game, "Will You Snail.exe"),
+            data: await path.join(FilePaths.game, "data.win"),
+            audiogroups: [
+                await path.join(FilePaths.game, "audiogroup1.dat"),
+                await path.join(FilePaths.game, "audiogroup2.dat"),
+            ],
+        };
         modalStates.new = true;
     };
     const openEditProfile = async (id) => {
@@ -157,7 +170,105 @@
         };
     };
     const launchGame = async () => {
-        const profile = await Profiles.get(currentLaunchingProfileId);
+        let launchingProfile = await Profiles.get(currentLaunchingProfileId);
+        if (!currentLaunchingProfileId) {
+            // load default state
+            launchingProfile = {};
+        }
+        const defaultLaunchInfo = {
+            executable: await path.join(FilePaths.game, "Will You Snail.exe"),
+            executableReplacement: await path.join(
+                FilePaths.game,
+                "WillYouSnail_snailtool.exe"
+            ),
+            data: await path.join(FilePaths.game, "data.win"),
+            dataReplacement: await path.join(
+                FilePaths.game,
+                "data_snailtoolLaunching.win"
+            ),
+            audiogroups: [
+                await path.join(FilePaths.game, "audiogroup1.dat"),
+                await path.join(FilePaths.game, "audiogroup2.dat"),
+            ],
+        };
+        const launchInfo = {
+            modified: false,
+            executable: await path.join(FilePaths.game, "Will You Snail.exe"),
+            data: await path.join(FilePaths.game, "data.win"),
+            audiogroups: [
+                await path.join(FilePaths.game, "audiogroup1.dat"),
+                await path.join(FilePaths.game, "audiogroup2.dat"),
+            ],
+        };
+        if (currentLaunchingProfileId) {
+            // replace stuff
+            if (launchingProfile.filesReplaced && launchingProfile.files) {
+                if (launchingProfile.files.executable) {
+                    launchInfo.executable = await path.resolve(
+                        Cast.toString(launchingProfile.files.executable)
+                    );
+                    launchInfo.modified = true;
+                }
+                if (launchingProfile.files.data) {
+                    launchInfo.data = await path.resolve(
+                        Cast.toString(launchingProfile.files.data)
+                    );
+                    launchInfo.modified = true;
+                }
+                if (Array.isArray(launchingProfile.files.audiogroups)) {
+                    for (
+                        let i = 0;
+                        i < launchingProfile.files.audiogroups.length;
+                        i++
+                    ) {
+                        const audioGroupPath =
+                            launchingProfile.files.audiogroups[i];
+                        launchInfo.audiogroups[i] = await path.resolve(
+                            Cast.toString(audioGroupPath)
+                        );
+                        launchInfo.modified = true;
+                    }
+                }
+            }
+        }
+        // replace if modified
+        if (launchInfo.modified) {
+            await fs.copyFile(
+                launchInfo.executable,
+                defaultLaunchInfo.executableReplacement
+            );
+            await fs.copyFile(
+                launchInfo.data,
+                defaultLaunchInfo.dataReplacement
+            );
+        }
+        // we always replace audio groups, they are the only file we cant change the name of
+        for (let i = 0; i < launchInfo.audiogroups.length; i++) {
+            const audioGroupPath = launchInfo.audiogroups[i];
+            const targetPath = await path.join(
+                FilePaths.game,
+                `audiogroup${i + 1}.dat`
+            );
+            await fs.copyFile(audioGroupPath, targetPath);
+        }
+        // modify GS2ML config if profiles do it
+        // TODO: modify config if mods are present, this isnt possible until Omega releases that
+        // launch the game
+        // create cmd script (full paths are broken in new Command())
+        const filePath = "./launch_game_snailtool.cmd";
+        const cmdScriptPath = await path.resolve(filePath);
+        const cmdScript = `"${
+            launchInfo.modified
+                ? defaultLaunchInfo.executableReplacement
+                : defaultLaunchInfo.executable
+        }" -game "${
+            launchInfo.modified
+                ? defaultLaunchInfo.dataReplacement
+                : defaultLaunchInfo.data
+        }"`;
+        await fs.writeTextFile(cmdScriptPath, `${cmdScript}\nexit`);
+        // run the command
+        await shell.open(cmdScriptPath);
     };
 
     // latest gs2ml doo do
@@ -758,6 +869,42 @@
                 />
                 <img src={IconProfile} alt="Snail" />
             </div>
+            <label>
+                Use different game files
+                <input
+                    type="checkbox"
+                    bind:checked={modalCreateProfileData.filesReplaced}
+                />
+            </label>
+            {#if modalCreateProfileData.filesReplaced}
+                <p>
+                    Executable Path:
+                    <input
+                        type="text"
+                        bind:value={modalCreateProfileData.files.executable}
+                    />
+                    <button>Browse...</button>
+                </p>
+                <p>
+                    Data Path:
+                    <input
+                        type="text"
+                        bind:value={modalCreateProfileData.files.data}
+                    />
+                    <button>Browse...</button>
+                </p>
+                <br />
+                <button>Add audio group</button>
+                <button>Remove audio group</button>
+                <p>
+                    Audio Group 1 Path:
+                    <input
+                        type="text"
+                        bind:value={modalCreateProfileData.files.audiogroups[0]}
+                    />
+                    <button>Browse...</button>
+                </p>
+            {/if}
         </div>
         <button class="profile-create-button" on:click={createProfile}>
             Create
