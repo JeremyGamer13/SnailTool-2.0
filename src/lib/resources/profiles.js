@@ -4,7 +4,7 @@ const ProfileDatabase = new JSONStorage('./profiles_snailtool.json');
 
 class Profiles {
     static async get(key) {
-        if (!key) return (await ProfileDatabase.all()).values();
+        if (!key) return (await ProfileDatabase.all()).map(v => v.data);
         return await ProfileDatabase.get(key);
     }
     static generateKey() {
@@ -12,6 +12,9 @@ class Profiles {
     }
     static set(name, data) {
         return ProfileDatabase.set(name, data);
+    }
+    static delete(name) {
+        return ProfileDatabase.delete(name);
     }
 }
 

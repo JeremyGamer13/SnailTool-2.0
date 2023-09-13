@@ -50,12 +50,7 @@
         profileUpdate++;
     });
 
-    const createProfile = async () => {
-        profiles = await Profiles.get();
-        profileUpdate++;
-    };
-
-    // modals (should be below all functionality)
+    // modals
     const modalStates = {
         gs2ml: {
             open: false,
@@ -70,6 +65,99 @@
         },
         new: false,
         edit: false,
+    };
+    // progress bar on menu
+    // highest is highest priority
+    let progressStateUpdated = 0;
+    const progressStates = {
+        launchGame: { text: "", data: [0, 0] },
+        installingGs2ml: { text: "", data: [0, 0] },
+        registeringMods: { text: "", data: [0, 0] },
+        creatingProfile: { text: "", data: [0, 0] },
+    };
+    const getCurrentProgressState = () => {
+        const defaultState = { text: "No waiting actions", data: [0, 1] };
+        for (const stateKey in progressStates) {
+            const state = progressStates[stateKey];
+            if (state.data[0] !== 0) {
+                return state;
+            }
+        }
+        return defaultState;
+    };
+    let currentProgressState = getCurrentProgressState();
+    const updateProgressState = () => {
+        currentProgressState = getCurrentProgressState();
+        progressStateUpdated++;
+    };
+
+    // profiles
+    let currentLaunchingProfileId = "";
+    let modalCreateProfileData = {
+        name: "New Profile",
+    };
+    let modalEditProfileData = {
+        id: "123",
+        name: "New Profile",
+        loaded: false,
+    };
+    const createProfile = async () => {
+        modalStates.new = false;
+        // set progress
+        progressStates.creatingProfile.text = "Creating profile";
+        progressStates.creatingProfile.data = [1, 2];
+        updateProgressState();
+        // get ID & set
+        const profileData = modalCreateProfileData;
+        const profileId = Profiles.generateKey();
+        await Profiles.set(profileId, {
+            ...profileData,
+            id: profileId,
+        });
+        // uptade
+        progressStates.creatingProfile.data = [2, 2];
+        profiles = await Profiles.get();
+        profileUpdate++;
+        progressStates.creatingProfile.text = "";
+        progressStates.creatingProfile.data = [0, 0];
+        updateProgressState();
+    };
+    const applyEditsOnProfile = async (id) => {
+        const profileData = {
+            ...modalEditProfileData,
+        };
+        delete profileData.loaded;
+        await Profiles.set(id, profileData);
+        profiles = await Profiles.get();
+        profileUpdate++;
+        modalStates.edit = false;
+    };
+    const deleteProfile = async (id) => {
+        // confirm is a promise in tauri + svelte
+        const profile = await Profiles.get(id);
+        const message = `Are you sure you want to delete "${profile.name}"? This will remove all related files for this profile permanently.`;
+        if (!(await confirm(message))) return;
+        // delete
+        await Profiles.delete(id);
+        profiles = await Profiles.get();
+        profileUpdate++;
+        modalStates.edit = false;
+    };
+    const openCreateProfile = async () => {
+        modalStates.new = true;
+    };
+    const openEditProfile = async (id) => {
+        modalStates.edit = true;
+        modalEditProfileData.loaded = false;
+        // get profile
+        const profile = await Profiles.get(id);
+        modalEditProfileData = {
+            ...profile,
+            loaded: true,
+        };
+    };
+    const launchGame = async () => {
+        const profile = await Profiles.get(currentLaunchingProfileId);
     };
 
     // latest gs2ml doo do
@@ -251,6 +339,10 @@
     };
     const fetchAndInsertGs2ml = async () => {
         // get the latest release
+        progressStates.installingGs2ml.text =
+            "Fetching latest GS2ML release info";
+        progressStates.installingGs2ml.data = [1, 4];
+        updateProgressState();
         console.log("fetching latest GS2ML archive");
         const latestReleaseMeta = await http.fetch(
             "https://api.github.com/repos/OmegaMetor/GS2ML/releases/latest",
@@ -270,6 +362,9 @@
         const GS2MLRelease =
             latestReleaseMeta.data.assets[0].browser_download_url;
         // get the zip file
+        progressStates.installingGs2ml.text = "Fetching GS2ML release";
+        progressStates.installingGs2ml.data = [2, 4];
+        updateProgressState();
         console.log("fetching GS2ML archive", GS2MLRelease);
         const res = await http.fetch(GS2MLRelease, {
             method: "GET",
@@ -285,12 +380,18 @@
         const archivePath = await path.resolve("./gs2ml_archive_snailtool.zip");
         const archiveTarget = await path.resolve(FilePaths.game);
         console.log("writing file to", archivePath);
+        progressStates.installingGs2ml.text = "Downloading GS2ML release";
+        progressStates.installingGs2ml.data = [3, 4];
+        updateProgressState();
         await fs.writeBinaryFile(archivePath, res.data);
         // create powershell script to unzip file
         const ps1Path = await path.resolve(
             "./gs2ml_archive_unzip_snailtool.ps1"
         );
         console.log("creating powershell script at", archivePath);
+        progressStates.installingGs2ml.text = "Unzipping GS2ML release";
+        progressStates.installingGs2ml.data = [4, 4];
+        updateProgressState();
         await fs.writeTextFile(
             ps1Path,
             `Expand-Archive '${archivePath}' '${archiveTarget}' -Force`
@@ -321,6 +422,9 @@
             Cast.toString(gs2mlVersion)
         );
         // we successed, reload
+        progressStates.installingGs2ml.text = "";
+        progressStates.installingGs2ml.data = [0, 0];
+        updateProgressState();
         modalStates.gs2ml.open = false;
         openGs2mlMenu();
     };
@@ -347,6 +451,9 @@
         try {
             await fetchAndInsertGs2ml();
         } catch (err) {
+            progressStates.installingGs2ml.text = "";
+            progressStates.installingGs2ml.data = [0, 0];
+            updateProgressState();
             console.error(
                 "couldnt install GS2ML;",
                 err.stack ? err.stack : err
@@ -370,6 +477,9 @@
         try {
             await fetchAndInsertGs2ml();
         } catch (err) {
+            progressStates.installingGs2ml.text = "";
+            progressStates.installingGs2ml.data = [0, 0];
+            updateProgressState();
             console.error(
                 "couldnt install GS2ML;",
                 err.stack ? err.stack : err
@@ -505,8 +615,17 @@
         });
         if (!dialogResult) return;
         const directories = Cast.toArray(dialogResult);
+        let idx = 0;
         for (const directory of directories) {
             try {
+                progressStates.registeringMods.text = `Registering mod (${
+                    idx + 1
+                }/${directories.length})`;
+                progressStates.registeringMods.data = [
+                    idx + 1,
+                    directories.length,
+                ];
+                updateProgressState();
                 await handleGs2mlRegistryOfDirectory(directory);
             } catch (err) {
                 console.error(err, err.stack);
@@ -521,11 +640,18 @@
                 );
             }
             await lookForGs2mlMods();
+            idx++;
         }
         // some functions need more time
         setTimeout(async () => {
             await lookForGs2mlMods();
+            progressStates.registeringMods.text = "";
+            progressStates.registeringMods.data = [0, 0];
+            updateProgressState();
         }, 1000);
+        progressStates.registeringMods.text = "";
+        progressStates.registeringMods.data = [0, 0];
+        updateProgressState();
     };
 </script>
 
@@ -616,13 +742,69 @@
         </div>
     </Modal>
 {/if}
+{#if modalStates.new}
+    <Modal
+        title="New Profile"
+        width="90"
+        on:close={() => (modalStates.new = false)}
+    >
+        <div style="padding: 8px;">
+            <div class="puppet-saveslot">
+                <!-- svelte-ignore a11y-autofocus -->
+                <input
+                    class="puppet-saveslot-header"
+                    bind:value={modalCreateProfileData.name}
+                    autofocus
+                />
+                <img src={IconProfile} alt="Snail" />
+            </div>
+        </div>
+        <button class="profile-create-button" on:click={createProfile}>
+            Create
+        </button>
+    </Modal>
+{/if}
+{#if modalStates.edit}
+    <Modal
+        title="Edit Profile"
+        width="90"
+        on:close={() => (modalStates.edit = false)}
+    >
+        {#if modalEditProfileData.loaded}
+            <div style="padding: 8px;">
+                <div class="puppet-saveslot">
+                    <!-- svelte-ignore a11y-autofocus -->
+                    <input
+                        class="puppet-saveslot-header"
+                        bind:value={modalEditProfileData.name}
+                    />
+                    <img src={IconProfile} alt="Snail" />
+                </div>
+                <button
+                    class="mod-entry-delete"
+                    on:click={() => deleteProfile(modalEditProfileData.id)}
+                />
+            </div>
+            <button
+                class="profile-create-button"
+                on:click={() => applyEditsOnProfile(modalEditProfileData.id)}
+            >
+                Apply
+            </button>
+        {/if}
+    </Modal>
+{/if}
 
 <NavigationBar />
 
 {#if profilesLoaded}
     {#key profileUpdate}
         {#each profiles as profile}
-            <SaveSlot header={profile.name} icon={IconProfile} />
+            <SaveSlot
+                on:click={() => openEditProfile(profile.id)}
+                header={profile.name}
+                icon={IconProfile}
+            />
         {/each}
     {/key}
     <SaveSlot
@@ -631,13 +813,112 @@
         icon={IconGS2ML}
         on:click={() => openGs2mlMenu()}
     />
-    <SaveSlot header={"New Profile"} plus={true} on:click={createProfile} />
+    <SaveSlot header={"New Profile"} plus={true} on:click={openCreateProfile} />
 {/if}
+
+<div style="height: 3rem;" />
+<div class="action-bar">
+    {#key profileUpdate}
+        <select
+            class="profile-selector"
+            style={profiles.length > 0 ? "" : "opacity: 0.5"}
+            disabled={profiles.length <= 0}
+            bind:value={currentLaunchingProfileId}
+        >
+            {#each profiles as profile}
+                <option value={profile.id}>{profile.name}</option>
+            {:else}
+                <option value="" disabled selected>
+                    (No profiles created)
+                </option>
+            {/each}
+        </select>
+    {/key}
+    <div class="action-progress-area">
+        {#key progressStateUpdated}
+            <div class="action-progress-bar">
+                <div
+                    class="action-progress-bar-fill"
+                    style={`width: ${
+                        (currentProgressState.data[0] /
+                            currentProgressState.data[1]) *
+                        100
+                    }%;`}
+                />
+            </div>
+            <p>{currentProgressState.text}</p>
+        {/key}
+    </div>
+    <button class="launch-game" on:click={launchGame}>Launch Game</button>
+</div>
 
 <style>
     .gs2ml-searching {
         margin-block: 2em;
         opacity: 0.6;
+    }
+
+    .profile-selector,
+    .launch-game {
+        width: calc(20% - 16px);
+        height: 2.5rem;
+    }
+    .profile-selector {
+        border-width: 1px;
+        border-radius: 0 !important;
+        background-color: rgba(0, 0, 0, 0);
+        border-color: #85448e;
+        border-style: solid;
+        cursor: pointer;
+        user-select: none;
+    }
+    .profile-selector:disabled {
+        cursor: not-allowed;
+    }
+    .profile-selector:focus {
+        background-color: #331f30;
+        border-color: #ea81f9;
+        outline: unset;
+    }
+
+    .action-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 3rem;
+        background: rgb(14, 0, 14);
+        border-top: 1px solid #f0c0e3;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-around;
+    }
+    .action-progress-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 60%;
+        overflow: hidden;
+    }
+    .action-bar p {
+        margin-block: 0;
+    }
+    .action-progress-bar {
+        position: relative;
+        width: 100%;
+        height: 4px;
+        margin-bottom: 4px;
+        background: #f0c0e333;
+    }
+    .action-progress-bar-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 0;
+        height: 100%;
+        background: #f0c0e3;
     }
 
     .mod-entry {
@@ -688,5 +969,58 @@
     .mod-entry-delete:active {
         opacity: 0.7;
         transition-duration: 0s;
+    }
+
+    .puppet-saveslot {
+        position: relative;
+        width: 180px;
+        height: 275px;
+        border-radius: 0;
+        user-select: none;
+        border-width: 1px;
+        border-radius: 0 !important;
+        background-color: rgba(0, 0, 0, 0);
+        border-color: #85448e;
+        border-style: solid;
+    }
+    .puppet-saveslot img {
+        position: absolute;
+        left: calc(50% - (65px / 2));
+        top: calc(50% - (65px / 2));
+        width: 65px;
+        height: 65px;
+        image-rendering: pixelated;
+    }
+
+    .puppet-saveslot-header,
+    .puppet-saveslot-footer {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        color: white;
+        font-size: 22px;
+        text-align: center;
+        background: transparent;
+        border: 0;
+        padding: 0;
+        margin: 0;
+    }
+    .puppet-saveslot-header:focus,
+    .puppet-saveslot-footer:focus {
+        outline: 0;
+    }
+    .puppet-saveslot-header {
+        top: 4px;
+    }
+    .puppet-saveslot-footer {
+        bottom: 4px;
+    }
+
+    .profile-create-button {
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        width: calc(100% - 8px);
+        padding: 12px;
     }
 </style>

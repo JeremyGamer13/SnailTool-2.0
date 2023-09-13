@@ -34,6 +34,7 @@
         height: 275px;
         border-radius: 0;
         user-select: none;
+        margin: 4px;
     }
     button img {
         width: 65px;
@@ -49,6 +50,9 @@
         color: white;
         font-size: 22px;
         text-align: center;
+        overflow: hidden;
+        white-space: wrap;
+        text-overflow: ellipsis;
     }
     .header {
         top: 4px;
