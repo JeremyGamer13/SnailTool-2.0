@@ -22,6 +22,13 @@
     };
     // we install SDK for now, maybe we wont in the future
     const NetInstallationCommand = "winget install Microsoft.DotNet.SDK.6";
+    const delay = (ms) => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve();
+            }, ms);
+        });
+    };
 
     // ICONS
     import IconGS2ML from "$lib/components/SaveSlot/gs2ml.png";
@@ -169,7 +176,72 @@
             loaded: true,
         };
     };
+    let createProfileAudioGroupUpdate = 0;
+    const createProfileAudioGroupChange = async (addOrRemove) => {
+        if (addOrRemove) {
+            const audioGroups = modalCreateProfileData.files.audiogroups;
+            const newpath = await path.join(
+                FilePaths.game,
+                `audiogroup${audioGroups.length + 1}.dat`
+            );
+            audioGroups.push(newpath);
+            createProfileAudioGroupUpdate++;
+            return;
+        }
+        const audioGroups = modalCreateProfileData.files.audiogroups;
+        if (audioGroups.length <= 2) return;
+        audioGroups.pop();
+        createProfileAudioGroupUpdate++;
+    };
+    const createProfileBrowseFile = async (type, idx) => {
+        const settings = {
+            filters: [
+                {
+                    name: "Game Executable",
+                    extensions: ["exe"],
+                },
+            ],
+        };
+        switch (type) {
+            case "data":
+                settings.filters = [
+                    {
+                        name: "GameMaker Game Data",
+                        extensions: ["win"],
+                    },
+                ];
+                break;
+            case "audio":
+                settings.filters = [
+                    {
+                        name: "GameMaker Audio Group",
+                        extensions: ["dat"],
+                    },
+                ];
+                break;
+        }
+        const browsedPath = await dialog.open({
+            multiple: false,
+            directory: false,
+            filters: settings.filters,
+        });
+        if (!browsedPath) return;
+        switch (type) {
+            case "exe":
+                modalCreateProfileData.files.executable = browsedPath;
+                break;
+            case "data":
+                modalCreateProfileData.files.data = browsedPath;
+                break;
+            case "audio":
+                modalCreateProfileData.files.audiogroups[idx] = browsedPath;
+                break;
+        }
+    };
     const launchGame = async () => {
+        progressStates.launchGame.text = "Launching game";
+        progressStates.launchGame.data = [1, 7];
+        updateProgressState();
         let launchingProfile = await Profiles.get(currentLaunchingProfileId);
         if (!currentLaunchingProfileId) {
             // load default state
@@ -200,6 +272,9 @@
                 await path.join(FilePaths.game, "audiogroup2.dat"),
             ],
         };
+        progressStates.launchGame.text = "Launching game";
+        progressStates.launchGame.data = [2, 7];
+        updateProgressState();
         if (currentLaunchingProfileId) {
             // replace stuff
             if (launchingProfile.filesReplaced && launchingProfile.files) {
@@ -231,17 +306,26 @@
                 }
             }
         }
+        progressStates.launchGame.text = "Launching game";
+        progressStates.launchGame.data = [3, 7];
+        updateProgressState();
         // replace if modified
         if (launchInfo.modified) {
             await fs.copyFile(
                 launchInfo.executable,
                 defaultLaunchInfo.executableReplacement
             );
+            progressStates.launchGame.text = "Launching game";
+            progressStates.launchGame.data = [4, 7];
+            updateProgressState();
             await fs.copyFile(
                 launchInfo.data,
                 defaultLaunchInfo.dataReplacement
             );
         }
+        progressStates.launchGame.text = "Launching game";
+        progressStates.launchGame.data = [5, 7];
+        updateProgressState();
         // we always replace audio groups, they are the only file we cant change the name of
         for (let i = 0; i < launchInfo.audiogroups.length; i++) {
             const audioGroupPath = launchInfo.audiogroups[i];
@@ -249,26 +333,61 @@
                 FilePaths.game,
                 `audiogroup${i + 1}.dat`
             );
-            await fs.copyFile(audioGroupPath, targetPath);
+            if (audioGroupPath !== targetPath) {
+                // the file cant be copied if they are the same path
+                // otherwise windows says snailtool is in the process of using the file
+                await fs.copyFile(audioGroupPath, targetPath);
+            }
         }
+        progressStates.launchGame.text = "Launching game";
+        progressStates.launchGame.data = [6, 7];
+        updateProgressState();
         // modify GS2ML config if profiles do it
         // TODO: modify config if mods are present, this isnt possible until Omega releases that
         // launch the game
         // create cmd script (full paths are broken in new Command())
         const filePath = "./launch_game_snailtool.cmd";
         const cmdScriptPath = await path.resolve(filePath);
-        const cmdScript = `"${
+        const cmdScript = `start /D "${FilePaths.game}" "" "${
             launchInfo.modified
-                ? defaultLaunchInfo.executableReplacement
-                : defaultLaunchInfo.executable
-        }" -game "${
+                ? "WillYouSnail_snailtool.exe"
+                : "Will You Snail.exe"
+        }"${
             launchInfo.modified
-                ? defaultLaunchInfo.dataReplacement
-                : defaultLaunchInfo.data
-        }"`;
+                ? ` -game "${
+                      launchInfo.modified
+                          ? defaultLaunchInfo.dataReplacement
+                          : defaultLaunchInfo.data
+                  }"`
+                : ""
+        }`;
+        progressStates.launchGame.text = "Launching game";
+        progressStates.launchGame.data = [7, 7];
+        updateProgressState();
         await fs.writeTextFile(cmdScriptPath, `${cmdScript}\nexit`);
         // run the command
         await shell.open(cmdScriptPath);
+        progressStates.launchGame.text = "";
+        progressStates.launchGame.data = [0, 0];
+        updateProgressState();
+    };
+    const launchGameReportError = () => {
+        launchGame()
+            .catch((err) => {
+                console.error(err.stack ? err.stack : err);
+                dialog.message(
+                    `A fatal error occurred, and the game failed to launch.\n\n${
+                        err.stack ? err.stack : err
+                    }`,
+                    { title: "Launch Error", type: "error" }
+                );
+                return;
+            })
+            .finally(() => {
+                progressStates.launchGame.text = "";
+                progressStates.launchGame.data = [0, 0];
+                updateProgressState();
+            });
     };
 
     // latest gs2ml doo do
@@ -859,52 +978,85 @@
         width="90"
         on:close={() => (modalStates.new = false)}
     >
-        <div style="padding: 8px;">
-            <div class="puppet-saveslot">
-                <!-- svelte-ignore a11y-autofocus -->
-                <input
-                    class="puppet-saveslot-header"
-                    bind:value={modalCreateProfileData.name}
-                    autofocus
-                />
-                <img src={IconProfile} alt="Snail" />
+        <div class="new-profile-modal-padding">
+            <div class="new-profile-modal-content">
+                <div class="new-profile-modal-content-save">
+                    <div class="puppet-saveslot">
+                        <!-- svelte-ignore a11y-autofocus -->
+                        <input
+                            class="puppet-saveslot-header"
+                            bind:value={modalCreateProfileData.name}
+                            autofocus
+                        />
+                        <img src={IconProfile} alt="Snail" />
+                    </div>
+                </div>
+                <div class="new-profile-modal-content-gamefiles">
+                    <label>
+                        Use different game files
+                        <input
+                            type="checkbox"
+                            bind:checked={modalCreateProfileData.filesReplaced}
+                        />
+                    </label>
+                    {#if modalCreateProfileData.filesReplaced}
+                        <div style="height: 8px;" />
+                        <p>
+                            Executable Path:
+                            <input
+                                type="text"
+                                bind:value={modalCreateProfileData.files
+                                    .executable}
+                            />
+                            <button
+                                on:click={() => createProfileBrowseFile("exe")}
+                                >Browse...</button
+                            >
+                        </p>
+                        <p>
+                            Data Path:
+                            <input
+                                type="text"
+                                bind:value={modalCreateProfileData.files.data}
+                            />
+                            <button
+                                on:click={() => createProfileBrowseFile("data")}
+                                >Browse...</button
+                            >
+                        </p>
+                        <br />
+                        <button
+                            on:click={() => createProfileAudioGroupChange(true)}
+                        >
+                            Add audio group
+                        </button>
+                        <button
+                            on:click={() =>
+                                createProfileAudioGroupChange(false)}
+                        >
+                            Remove audio group
+                        </button>
+                        {#key createProfileAudioGroupUpdate}
+                            {#each modalCreateProfileData.files.audiogroups as audioGroupPath, idx}
+                                <p>
+                                    Audio Group {idx + 1} Path:
+                                    <input
+                                        type="text"
+                                        bind:value={audioGroupPath}
+                                    />
+                                    <button
+                                        on:click={() =>
+                                            createProfileBrowseFile(
+                                                "audio",
+                                                idx
+                                            )}>Browse...</button
+                                    >
+                                </p>
+                            {/each}
+                        {/key}
+                    {/if}
+                </div>
             </div>
-            <label>
-                Use different game files
-                <input
-                    type="checkbox"
-                    bind:checked={modalCreateProfileData.filesReplaced}
-                />
-            </label>
-            {#if modalCreateProfileData.filesReplaced}
-                <p>
-                    Executable Path:
-                    <input
-                        type="text"
-                        bind:value={modalCreateProfileData.files.executable}
-                    />
-                    <button>Browse...</button>
-                </p>
-                <p>
-                    Data Path:
-                    <input
-                        type="text"
-                        bind:value={modalCreateProfileData.files.data}
-                    />
-                    <button>Browse...</button>
-                </p>
-                <br />
-                <button>Add audio group</button>
-                <button>Remove audio group</button>
-                <p>
-                    Audio Group 1 Path:
-                    <input
-                        type="text"
-                        bind:value={modalCreateProfileData.files.audiogroups[0]}
-                    />
-                    <button>Browse...</button>
-                </p>
-            {/if}
         </div>
         <button class="profile-create-button" on:click={createProfile}>
             Create
@@ -968,7 +1120,9 @@
     {#key profileUpdate}
         <select
             class="profile-selector"
-            style={profiles.length > 0 ? "" : "opacity: 0.5"}
+            style={profiles.length > 0
+                ? ""
+                : "opacity: 0.5; font-style: italic;"}
             disabled={profiles.length <= 0}
             bind:value={currentLaunchingProfileId}
         >
@@ -976,7 +1130,7 @@
                 <option value={profile.id}>{profile.name}</option>
             {:else}
                 <option value="" disabled selected>
-                    (No profiles created)
+                    No profiles created
                 </option>
             {/each}
         </select>
@@ -996,13 +1150,31 @@
             <p>{currentProgressState.text}</p>
         {/key}
     </div>
-    <button class="launch-game" on:click={launchGame}>Launch Game</button>
+    <button class="launch-game" on:click={launchGameReportError}
+        >Launch Game</button
+    >
 </div>
 
 <style>
     .gs2ml-searching {
         margin-block: 2em;
         opacity: 0.6;
+    }
+
+    input[type="text"] {
+        background: transparent;
+        border: 1px solid #85448e;
+        border-radius: 0 !important;
+        transition-duration: 0.5s;
+    }
+    input[type="text"]:focus {
+        background-color: #331f30;
+        border-color: #ea81f9;
+        outline: unset;
+        transition-duration: 0.5s;
+    }
+    label {
+        user-select: none;
     }
 
     .profile-selector,
@@ -1026,6 +1198,26 @@
         background-color: #331f30;
         border-color: #ea81f9;
         outline: unset;
+    }
+
+    .new-profile-modal-padding {
+        padding: 8px;
+        width: calc(100% - 16px);
+        height: calc(100% - 16px);
+    }
+    .new-profile-modal-content {
+        display: flex;
+        flex-direction: row;
+        width: 100%;
+        height: 100%;
+    }
+    .new-profile-modal-content-save {
+        width: 50%;
+    }
+    .new-profile-modal-content-gamefiles {
+        width: 50%;
+        height: calc(100% - (44px + 8px));
+        overflow: auto;
     }
 
     .action-bar {
