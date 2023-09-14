@@ -146,7 +146,7 @@
     const deleteProfile = async (id) => {
         // confirm is a promise in tauri + svelte
         const profile = await Profiles.get(id);
-        const message = `Are you sure you want to delete "${profile.name}"? This will remove all related files for this profile permanently.`;
+        const message = `Are you sure you want to delete "${profile.name}"?\nAll settings for this profile will be removed.`;
         if (!(await confirm(message))) return;
         // delete
         await Profiles.delete(id);
