@@ -1,7 +1,6 @@
 <script>
     import * as fs from "@tauri-apps/api/fs";
     import * as path from "@tauri-apps/api/path";
-    import * as os from "@tauri-apps/api/os";
     import * as shell from "@tauri-apps/api/shell";
     import * as http from "@tauri-apps/api/http";
     import * as dialog from "@tauri-apps/api/dialog";
@@ -16,19 +15,15 @@
     import Cast from "$lib/resources/cast.js";
 
     const ConfigData = new JSONStorage("./config_snailtool.json");
+    const ProgramFiles = {
+        appData: "",
+    };
     const FilePaths = {
         game: "",
         save: "",
     };
     // we install SDK for now, maybe we wont in the future
     const NetInstallationCommand = "winget install Microsoft.DotNet.SDK.6";
-    const delay = (ms) => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve();
-            }, ms);
-        });
-    };
 
     // ICONS
     import IconGS2ML from "$lib/components/SaveSlot/gs2ml.png";
@@ -44,6 +39,9 @@
         if (typeof path === "string") {
             FilePaths.save = path;
         }
+    });
+    path.appDataDir().then((path) => {
+        ProgramFiles.appData = path;
     });
 
     // profiles
@@ -357,7 +355,10 @@
         // TODO: modify config if mods are present, this isnt possible until Omega releases that
         // launch the game
         // create cmd script (full paths are broken in new Command())
-        const filePath = "./launch_game_snailtool.cmd";
+        const filePath = await path.join(
+            ProgramFiles.appData,
+            "./launch_game_snailtool.cmd"
+        );
         const cmdScriptPath = await path.resolve(filePath);
         const cmdScript = `start /D "${FilePaths.game}" "" "${
             launchInfo.modified
@@ -435,7 +436,10 @@
         return exists;
     };
     const installDotNetSdk = async () => {
-        const filePath = "./install_dotnet_snailtool.cmd";
+        const filePath = await path.join(
+            ProgramFiles.appData,
+            "./install_dotnet_snailtool.cmd"
+        );
         // create cmd script
         const cmdScriptPath = await path.resolve(filePath);
         console.log("creating cmd script at", cmdScriptPath);
@@ -618,7 +622,10 @@
         }
         // write zip file
         console.log("writing file");
-        const archivePath = await path.resolve("./gs2ml_archive_snailtool.zip");
+        const archivePath = await path.join(
+            ProgramFiles.appData,
+            "./gs2ml_archive_snailtool.zip"
+        );
         const archiveTarget = await path.resolve(FilePaths.game);
         console.log("writing file to", archivePath);
         progressStates.installingGs2ml.text = "Downloading GS2ML release";
@@ -626,7 +633,8 @@
         updateProgressState();
         await fs.writeBinaryFile(archivePath, res.data);
         // create powershell script to unzip file
-        const ps1Path = await path.resolve(
+        const ps1Path = await path.join(
+            ProgramFiles.appData,
             "./gs2ml_archive_unzip_snailtool.ps1"
         );
         console.log("creating powershell script at", archivePath);
@@ -840,7 +848,8 @@
         const modPath = await path.join(FilePaths.game, `gs2ml/mods/${modId}`);
         const cmdCommand = `xcopy "${dirpath}" "${modPath}" /s /e /y /i`;
         // create cmd script
-        const cmdScriptPath = await path.resolve(
+        const cmdScriptPath = await path.join(
+            ProgramFiles.appData,
             "./copy_mod_folder_snailtool.cmd"
         );
         console.log("creating cmd script at", cmdScriptPath);
@@ -1021,8 +1030,9 @@
                             />
                             <button
                                 on:click={() => createProfileBrowseFile("exe")}
-                                >Browse...</button
                             >
+                                Browse...
+                            </button>
                         </p>
                         <p>
                             Data Path:
@@ -1032,8 +1042,9 @@
                             />
                             <button
                                 on:click={() => createProfileBrowseFile("data")}
-                                >Browse...</button
                             >
+                                Browse...
+                            </button>
                         </p>
                         <br />
                         <button
@@ -1060,8 +1071,10 @@
                                             createProfileBrowseFile(
                                                 "audio",
                                                 idx
-                                            )}>Browse...</button
+                                            )}
                                     >
+                                        Browse...
+                                    </button>
                                 </p>
                             {/each}
                         {/key}

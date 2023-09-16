@@ -5,6 +5,7 @@
 // easily editable data by the user if necessary and easily editable by the application.
 
 import * as fs from "@tauri-apps/api/fs";
+import * as path from "@tauri-apps/api/path";
 
 const setNestedProperty = (object, key, value) => {
     const properties = key.split('.');
@@ -49,13 +50,6 @@ export default class JSONStorage {
      * @param {DatabaseOptions} options
      */
     constructor(filePath, options) {
-
-        /**
-         * The path of the json file used as database.
-         * @type {string}
-         */
-        this.jsonFilePath = filePath || "./db.json";
-
         /**
          * The options for the database
          * @type {DatabaseOptions}
@@ -71,22 +65,37 @@ export default class JSONStorage {
         this.ready = false;
 
         /**
+         * The path of the json file used as database.
+         * @type {string}
+         */
+        this.jsonFilePath = filePath || "./db.json";
+
+        /**
          * The data stored in the database.
          * @type {object}
          */
         this.data = {};
 
-        fs.exists(this.jsonFilePath).then(exists => {
-            if (!exists) {
-                fs.writeTextFile(this.jsonFilePath, "{}").then(() => {
-                    this.ready = true;
-                });
-            } else {
-                this.fetchDataFromFile().then(() => {
-                    this.ready = true;
-                });
-            }
-        });
+        // This should set this.ready to true when complete.
+        this.initialize();
+    }
+
+    /**
+     * Setup and mark the storage as ready.
+     */
+    async initialize() {
+        // validate json path (we cant access ./ when built)
+        const oldPath = this.jsonFilePath;
+        const appDataFolder = await path.appDataDir();
+        this.jsonFilePath = await path.join(appDataFolder, oldPath);
+        // create the file
+        const exists = await fs.exists(this.jsonFilePath);
+        if (!exists) {
+            await fs.writeTextFile(this.jsonFilePath, "{}");
+        } else {
+            await this.fetchDataFromFile();
+        }
+        this.ready = true;
     }
 
     /**
