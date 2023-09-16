@@ -100,6 +100,12 @@
 
     // profiles
     let currentLaunchingProfileId = "";
+    ConfigData.get("defaultProfile").then((profileId) => {
+        if (currentLaunchingProfileId === "") {
+            currentLaunchingProfileId = profileId;
+        }
+    });
+
     let modalCreateProfileData = {
         name: "New Profile",
         filesReplaced: false,
@@ -237,6 +243,11 @@
                 modalCreateProfileData.files.audiogroups[idx] = browsedPath;
                 break;
         }
+    };
+    const setNewSavedDefaultProfile = async (event) => {
+        const newDefault = event.target.value;
+        console.log("setting default profile to", newDefault);
+        await ConfigData.set("defaultProfile", newDefault);
     };
     const launchGame = async () => {
         progressStates.launchGame.text = "Launching game";
@@ -1124,6 +1135,7 @@
                 ? ""
                 : "opacity: 0.5; font-style: italic;"}
             disabled={profiles.length <= 0}
+            on:change={setNewSavedDefaultProfile}
             bind:value={currentLaunchingProfileId}
         >
             {#each profiles as profile}
@@ -1150,9 +1162,9 @@
             <p>{currentProgressState.text}</p>
         {/key}
     </div>
-    <button class="launch-game" on:click={launchGameReportError}
-        >Launch Game</button
-    >
+    <button class="launch-game" on:click={launchGameReportError}>
+        Launch Game
+    </button>
 </div>
 
 <style>
