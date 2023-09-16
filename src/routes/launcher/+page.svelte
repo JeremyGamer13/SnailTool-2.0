@@ -40,8 +40,12 @@
             FilePaths.save = path;
         }
     });
-    path.appDataDir().then((path) => {
+    path.appDataDir().then(async (path) => {
         ProgramFiles.appData = path;
+        const exists = await fs.exists(path);
+        if (!exists) {
+            await fs.createDir(path);
+        }
     });
 
     // profiles
@@ -242,6 +246,51 @@
                 break;
         }
     };
+    const editProfileBrowseFile = async (type, idx) => {
+        const settings = {
+            filters: [
+                {
+                    name: "Game Executable",
+                    extensions: ["exe"],
+                },
+            ],
+        };
+        switch (type) {
+            case "data":
+                settings.filters = [
+                    {
+                        name: "GameMaker Game Data",
+                        extensions: ["win"],
+                    },
+                ];
+                break;
+            case "audio":
+                settings.filters = [
+                    {
+                        name: "GameMaker Audio Group",
+                        extensions: ["dat"],
+                    },
+                ];
+                break;
+        }
+        const browsedPath = await dialog.open({
+            multiple: false,
+            directory: false,
+            filters: settings.filters,
+        });
+        if (!browsedPath) return;
+        switch (type) {
+            case "exe":
+                modalEditProfileData.files.executable = browsedPath;
+                break;
+            case "data":
+                modalEditProfileData.files.data = browsedPath;
+                break;
+            case "audio":
+                modalEditProfileData.files.audiogroups[idx] = browsedPath;
+                break;
+        }
+    };
     const setNewSavedDefaultProfile = async (event) => {
         const newDefault = event.target.value;
         console.log("setting default profile to", newDefault);
@@ -412,10 +461,17 @@
                 "User-Agent": "JeremyGamer13 : SnailTool-2.0",
             },
         }
-    ).then((res) => {
-        if (!res.ok) return;
-        modalStates.gs2ml.realLatestVersion = res.data.tag_name;
-    });
+    )
+        .then((res) => {
+            if (!res.ok) {
+                console.warn("Couldn't fetch latest GS2ML release!", res.data);
+                return;
+            }
+            modalStates.gs2ml.realLatestVersion = res.data.tag_name;
+        })
+        .catch((err) => {
+            console.warn("Couldn't fetch latest GS2ML release!", err);
+        });
 
     // dotnet
     const checkForDotNetSdk = async () => {
@@ -1025,6 +1081,7 @@
                             Executable Path:
                             <input
                                 type="text"
+                                class="directory-or-file-path-input"
                                 bind:value={modalCreateProfileData.files
                                     .executable}
                             />
@@ -1038,6 +1095,7 @@
                             Data Path:
                             <input
                                 type="text"
+                                class="directory-or-file-path-input"
                                 bind:value={modalCreateProfileData.files.data}
                             />
                             <button
@@ -1064,6 +1122,7 @@
                                     Audio Group {idx + 1} Path:
                                     <input
                                         type="text"
+                                        class="directory-or-file-path-input"
                                         bind:value={audioGroupPath}
                                     />
                                     <button
@@ -1094,19 +1153,99 @@
         on:close={() => (modalStates.edit = false)}
     >
         {#if modalEditProfileData.loaded}
-            <div style="padding: 8px;">
-                <div class="puppet-saveslot">
-                    <!-- svelte-ignore a11y-autofocus -->
-                    <input
-                        class="puppet-saveslot-header"
-                        bind:value={modalEditProfileData.name}
+            <div class="new-profile-modal-padding">
+                <div class="new-profile-modal-content">
+                    <div class="new-profile-modal-content-save">
+                        <div class="puppet-saveslot">
+                            <!-- svelte-ignore a11y-autofocus -->
+                            <input
+                                class="puppet-saveslot-header"
+                                bind:value={modalEditProfileData.name}
+                            />
+                            <img src={IconProfile} alt="Snail" />
+                        </div>
+                    </div>
+                    <div class="new-profile-modal-content-gamefiles">
+                        <label>
+                            Use different game files
+                            <input
+                                type="checkbox"
+                                bind:checked={modalEditProfileData.filesReplaced}
+                            />
+                        </label>
+                        {#if modalEditProfileData.filesReplaced}
+                            <div style="height: 8px;" />
+                            <p>
+                                Executable Path:
+                                <input
+                                    type="text"
+                                    class="directory-or-file-path-input"
+                                    bind:value={modalEditProfileData.files
+                                        .executable}
+                                />
+                                <button
+                                    on:click={() =>
+                                        editProfileBrowseFile("exe")}
+                                >
+                                    Browse...
+                                </button>
+                            </p>
+                            <p>
+                                Data Path:
+                                <input
+                                    type="text"
+                                    class="directory-or-file-path-input"
+                                    bind:value={modalEditProfileData.files
+                                        .data}
+                                />
+                                <button
+                                    on:click={() =>
+                                        editProfileBrowseFile("data")}
+                                >
+                                    Browse...
+                                </button>
+                            </p>
+                            <br />
+                            <button
+                                on:click={() =>
+                                    createProfileAudioGroupChange(true)}
+                            >
+                                Add audio group
+                            </button>
+                            <button
+                                on:click={() =>
+                                    createProfileAudioGroupChange(false)}
+                            >
+                                Remove audio group
+                            </button>
+                            {#key createProfileAudioGroupUpdate}
+                                {#each modalEditProfileData.files.audiogroups as audioGroupPath, idx}
+                                    <p>
+                                        Audio Group {idx + 1} Path:
+                                        <input
+                                            type="text"
+                                            class="directory-or-file-path-input"
+                                            bind:value={audioGroupPath}
+                                        />
+                                        <button
+                                            on:click={() =>
+                                                editProfileBrowseFile(
+                                                    "audio",
+                                                    idx
+                                                )}
+                                        >
+                                            Browse...
+                                        </button>
+                                    </p>
+                                {/each}
+                            {/key}
+                        {/if}
+                    </div>
+                    <button
+                        class="mod-entry-delete"
+                        on:click={() => deleteProfile(modalEditProfileData.id)}
                     />
-                    <img src={IconProfile} alt="Snail" />
                 </div>
-                <button
-                    class="mod-entry-delete"
-                    on:click={() => deleteProfile(modalEditProfileData.id)}
-                />
             </div>
             <button
                 class="profile-create-button"
@@ -1237,12 +1376,16 @@
         height: 100%;
     }
     .new-profile-modal-content-save {
-        width: 50%;
+        width: 188px;
     }
     .new-profile-modal-content-gamefiles {
-        width: 50%;
+        width: calc(100% - 188px);
         height: calc(100% - (44px + 8px));
         overflow: auto;
+    }
+    .directory-or-file-path-input {
+        width: 65%;
+        font-size: 11px;
     }
 
     .action-bar {

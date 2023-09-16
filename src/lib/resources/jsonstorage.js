@@ -88,6 +88,12 @@ export default class JSONStorage {
         const oldPath = this.jsonFilePath;
         const appDataFolder = await path.appDataDir();
         this.jsonFilePath = await path.join(appDataFolder, oldPath);
+        console.log('accessing JSON Storage at', this.jsonFilePath);
+        // does app data exist?
+        const appDataExists = await fs.exists(appDataFolder);
+        if (!appDataExists) {
+            await fs.createDir(appDataFolder);
+        }
         // create the file
         const exists = await fs.exists(this.jsonFilePath);
         if (!exists) {
