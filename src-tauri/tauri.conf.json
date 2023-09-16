@@ -51,8 +51,8 @@
     },
     "bundle": {
       "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
+      "category": "Utility",
+      "copyright": "JeremyGamer13",
       "deb": {
         "depends": []
       },
@@ -64,8 +64,8 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
-      "longDescription": "",
+      "identifier": "com.jeremygamer13.snailtool-v2",
+      "longDescription": "Launcher and tools for Will you Snail.",
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",
@@ -74,7 +74,7 @@
         "signingIdentity": null
       },
       "resources": [],
-      "shortDescription": "",
+      "shortDescription": "Launcher and tools for Will you Snail.",
       "targets": "all",
       "windows": {
         "certificateThumbprint": null,
