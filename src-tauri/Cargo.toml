@@ -1,10 +1,10 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Launcher and tools for Will you Snail."
+authors = ["JeremyGamer13"]
 license = ""
-repository = ""
+repository = "JeremyGamer13/SnailTool-2.0"
 default-run = "app"
 edition = "2021"
 rust-version = "1.60"

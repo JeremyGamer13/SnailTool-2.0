@@ -7,7 +7,7 @@
     "distDir": "../build"
   },
   "package": {
-    "productName": "snailtool-2.0",
+    "productName": "snailtool-v2",
     "version": "0.1.0"
   },
   "tauri": {
@@ -77,6 +77,9 @@
       "shortDescription": "Launcher and tools for Will you Snail.",
       "targets": "all",
       "windows": {
+        "wix": {
+          "language": "en-US"
+        },
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
         "timestampUrl": ""
